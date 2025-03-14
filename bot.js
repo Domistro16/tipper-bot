@@ -38,7 +38,7 @@ async function getUserWallet(userId) {
   console.log(`Fetching wallet for user ID: ${userId}`);
 
   try {
-    const res = await axios.get(`http://tipper-server-production.up.railway.app/api/wallets/${userId}`);
+    const res = await axios.get(`http://tipper-server.onrender.com/api/wallets/${userId}`);
     console.log(`Wallet retrieved from API: ${JSON.stringify(res.data)}`);
     return res.data.wallet; // Assuming API returns { wallet: { address: "0x..." } }
   } catch (err) {
@@ -48,7 +48,7 @@ async function getUserWallet(userId) {
       const wallet = ethers.Wallet.createRandom().connect(provider);
       try {
         console.log('trying...');
-        await axios.post(`http://tipper-server-production.up.railway.app/api/wallets/newWallet`, {
+        await axios.post(`http://tipper-server.onrender.com/api/wallets/newWallet`, {
           userId,
           wallet: {privateKey: wallet.privateKey, walletobj: wallet} // Ensure valid structure
         });
@@ -68,7 +68,7 @@ async function getDroptip(droptipId) {
   console.log(`Fetching droptip for Droptip ID: ${droptipId}`);
 
   try {
-    const res = await axios.get(`http://tipper-server-production.up.railway.app/api/droptips/${droptipId}`);
+    const res = await axios.get(`http://tipper-server.onrender.com/api/droptips/${droptipId}`);
     console.log(`Droptip retrieved from API: ${JSON.stringify(res.data)}`);
     return res.data.droptip; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
@@ -80,7 +80,7 @@ async function getKey(UserId) {
   console.log(`Fetching key for ID: ${UserId}`);
 
   try {
-    const res = await axios.get(`http://tipper-server-production.up.railway.app/api/wallets/privateKey/${UserId}`);
+    const res = await axios.get(`http://tipper-server.onrender.com/api/wallets/privateKey/${UserId}`);
     console.log(`private key retrieved from API: ${JSON.stringify(res.data)}`);
     return res.data.wallet; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
@@ -96,7 +96,7 @@ async function setDroptip(droptipId, droptip) {
     droptip 
   }, (key, value) => (typeof value === 'bigint' ? value.toString() : value)));
   try {
-    const res = await axios.post(`http://tipper-server-production.up.railway.app/api/droptips/updateDroptip`, formattedDroptip);
+    const res = await axios.post(`http://tipper-server.onrender.com/api/droptips/updateDroptip`, formattedDroptip);
     console.log(`Droptip updated from API: ${JSON.stringify(res.data)}`);
     return res; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
@@ -114,7 +114,7 @@ async function newDroptip(droptipId, droptip) {
   }, (key, value) => (typeof value === 'bigint' ? value.toString() : value)));
 
   try {
-    const res = await axios.post(`http://tipper-server-production.up.railway.app/api/droptips/newDroptip/`, formattedDroptip);
+    const res = await axios.post(`http://tipper-server.onrender.com/api/droptips/newDroptip/`, formattedDroptip);
     return res; // Assuming API returns { wallet: { address: "0x..." } }
   } catch (error) {
     console.log(error);

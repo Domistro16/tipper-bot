@@ -35,7 +35,7 @@ router.post("/wallets/newWallet", async (req, res) => {
 
 router.post("/droptips/newDroptip", async (req, res) => {
     const { droptipId, droptip } = req.body;
-
+    
     if (!droptipId || !droptip) {
         return res.status(400).json({ error: "Missing required fields" });
     }
