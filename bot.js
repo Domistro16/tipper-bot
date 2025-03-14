@@ -381,14 +381,14 @@ client.on('interactionCreate', async (interaction) => {
           const row = new ActionRowBuilder().addComponents(claimButton);
   
           await interaction.editReply({ 
-              content: `Droptip of ${amount} tokens dropped!\nThe droptip will expire in ${time} minutes\nExpires by ${expires}`,
+              content: `Droptip of ${amount} tokens dropped!\nThe droptip will expire in ${time} minutes\nExpires by <t:${expires}:F>`,
               components: [row]
           });
          await setExpiryTimer(time, droptipId); // Pass droptipId to correctly update the droptip on expiry
 
          const newDrop = await getDroptip(droptipId);
           await interaction.editReply({ 
-            content: `Droptip of ${amount} tokens dropped!\nThe droptip will expired in ${time} minutes\nThis droptip has expired\nNumber of Attendees: ${newDrop.attendees.length}`,
+            content: `Droptip of ${amount} tokens dropped!\nThe droptip will expire in ${time} minutes\nThis droptip has expired\nNumber of Attendees: ${newDrop.attendees.length}`,
             components: [row]
         });
       } catch (err) {
