@@ -273,7 +273,7 @@ client.on('interactionCreate', async (interaction) => {
           balance = ethers.BigNumber.from(0);
         }
     
-        const formatted = formatUnits(balance, TOKEN,_DECIMALS);
+        const formatted = formatUnits(balance, TOKEN_DECIMALS);
         await interaction.editReply({
           content: `Your wallet address is: \`${wallet.address}\`\nToken Balance: ${formatted}`,
           ephemeral: true
