@@ -16,6 +16,7 @@ const MEMECOIN_ADDRESS = process.env.MEMECOIN_ADDRESS;
 const BOT_PRIVATE_KEY = process.env.BOT_PRIVATE_KEY;
 const TOKEN_DECIMALS = parseInt(process.env.TOKEN_DECIMALS) ?? 18;
 const BOT_ADDRESS = process.env.BOT_ADDRESS
+const secretKey = process.env.SECRET_KEY
 
 
 // Set up ethers provider for BSC
