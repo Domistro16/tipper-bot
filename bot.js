@@ -1,9 +1,11 @@
 import "dotenv/config";
 import abi from "./abi.js";
-import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, time } from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, time, EmbedBuilder } from 'discord.js';
 import { ethers, formatUnits, parseUnits } from 'ethers';
 import { mnemonicToEntropy } from "bip39";
 import axios from "axios"
+import crypto from 'crypto';
+const algorithm = 'aes-256-cbc';
 
 // Environment variables
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -29,9 +31,24 @@ const botWallet = new ethers.Wallet(BOT_PRIVATE_KEY, provider);
 
 
 // In-memory stores
-const userWallets = new Map();  // Map Discord user ID => ethers wallet
 const droptips = new Map();     // Map droptip ID => droptip object
 let nextDroptipId = 1;
+
+function encryptPrivateKey(privateKey) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(algorithm, secretKey, iv);
+  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return { encryptedData: encrypted, iv: iv.toString('hex') };
+}
+
+// Decrypt function
+function decryptPrivateKey(encryptedData, iv) {
+  const decipher = crypto.createDecipheriv(algorithm, secretKey, Buffer.from(iv, 'hex'));
+  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 // Helper: get or create a user's wallet
 async function getUserWallet(userId) {
@@ -46,11 +63,16 @@ async function getUserWallet(userId) {
       console.log("Wallet not found, creating a new one...");
       
       const wallet = ethers.Wallet.createRandom().connect(provider);
+
+      const enc = encryptPrivateKey(wallet.privateKey);
+
+      const v = enc.encryptedData;
+      const iv = enc.iv;
       try {
         console.log('trying...');
         await axios.post(`http://tipper-server.onrender.com/api/wallets/newWallet`, {
           userId,
-          wallet: {privateKey: wallet.privateKey, walletobj: wallet} // Ensure valid structure
+          wallet: {v: v, iv: iv, wallet: wallet.address} // Ensure valid structure
         });
         console.log(`New wallet created and stored: ${wallet.address}`);
         return wallet;
@@ -82,7 +104,8 @@ async function getKey(UserId) {
   try {
     const res = await axios.get(`http://tipper-server.onrender.com/api/wallets/privateKey/${UserId}`);
     console.log(`private key retrieved from API: ${JSON.stringify(res.data)}`);
-    return res.data.wallet; // Assuming API returns { wallet: { address: "0x..." } }
+    const decryptedKey = decryptPrivateKey(res.data.v, res.data.iv);
+    return decryptedKey; 
   }catch(error){
     console.log(error);
   }
@@ -161,8 +184,7 @@ for (const attendee of attendees) {
       droptip.available = false;
       const senderWallet = await getUserWallet(droptip.senderId);
 
-      const senderAddress = senderWallet.address;
-      const tx = await botTokenContract.transfer(senderAddress, droptip.amount)
+      const tx = await botTokenContract.transfer(senderWallet, droptip.amount)
       await tx.wait();
       console.log(`Droptip ID ${droptipId} expired with no claims.`);
   }
@@ -258,15 +280,15 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'wallet') {
       console.log(`Executing /wallet command for user: ${interaction.user.id}`);
     
-      await interaction.reply({content: `Checking...`, ephemeral: true});
+      await interaction.reply({content: `Checking...`, flags: 'Ephemeral'});
     
       try {
         const wallet = await getUserWallet(interaction.user.id);
-        console.log(`Wallet Address Retrieved: ${wallet.address}`);
+        console.log(`Wallet Address Retrieved: ${wallet}`);
     
         let balance;
         try {
-          balance = await tokenContract.balanceOf(wallet.address);
+          balance = await tokenContract.balanceOf(wallet);
           console.log(`Wallet Balance Retrieved: ${balance.toString()}`);
         } catch (err) {
           console.error(`Error fetching token balance: ${err.message}`);
@@ -282,7 +304,7 @@ client.on('interactionCreate', async (interaction) => {
         console.log("Wallet command executed successfully");
       } catch (err) {
         console.error(`Error in /wallet command: ${err.message}`);
-        await interaction.editReply({ content: "An error occurred while fetching your wallet.", ephemeral: true });
+        await interaction.editReply({ content: "An error occurred while fetching your wallet.", flags: 'Ephemeral'});
       }
     }
     
@@ -290,7 +312,7 @@ client.on('interactionCreate', async (interaction) => {
     else if (commandName === 'deposit') {
       const wallet = await getUserWallet(interaction.user.id);
       await interaction.reply({content: `Checking...`, ephemeral: true});
-      await interaction.editReply({content: `To deposit tokens, send them to your wallet address:\n**${wallet.address}**`, ephemeral: true});
+      await interaction.editReply({content: `To deposit tokens, send them to your wallet address:\n**${wallet}**`, ephemeral: true});
     }
     // /withdraw <amount> <destination>
     else if (commandName === 'withdraw') {
@@ -299,14 +321,14 @@ client.on('interactionCreate', async (interaction) => {
       const key = await getKey(interaction.user.id);
       const signer = new ethers.Wallet(key, provider);
       const userTokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, signer);
-      await interaction.deferReply();
+      await interaction.reply({content: 'Withdrawing...', flags: 'Ephemeral'});
       try {
         const tx = await userTokenContract.transfer(destination, parseUnits(amount, TOKEN_DECIMALS));
         await tx.wait();
-        await interaction.editReply({content: `Withdrawal successful!\nSent ${amount} tokens to \`${destination}\`\nTransaction Hash: \`${tx.hash}\``, ephemeral: true});
+        await interaction.editReply({content: `Withdrawal successful!\nSent ${amount} tokens to \`${destination}\`\nTransaction Hash: \`${tx.hash}\``, flags: 'Ephemeral'});
       } catch (err) {
         console.error(err);
-        await interaction.editReply({content: `Withdrawal failed: ${err.message}`, ephemeral: true});
+        await interaction.editReply({content: `Withdrawal failed: ${err.message}`, flags: 'Ephemeral'});
       }
     }
     // /tip <user> <amount>
@@ -315,9 +337,9 @@ client.on('interactionCreate', async (interaction) => {
       const amount = interaction.options.getString('amount');
       const fee = 0.01 * parseFloat(amount);
       const targetId = targetUser.id;
-      await interaction.reply({content: 'Tipping...', ephemeral: true});
+      await interaction.reply({content: 'Tipping...', flags: 'Ephemeral'});
       if (targetId === interaction.user.id) {
-        return interaction.editReply({content: "You cannot tip yourself.", ephemeral: true});
+        return interaction.editReply({content: "You cannot tip yourself.", flags: 'Ephemeral'});
       }
       const senderWallet = await getUserWallet(interaction.user.id);
       const senderKey = await getKey(interaction.user.id);
@@ -325,14 +347,14 @@ client.on('interactionCreate', async (interaction) => {
       const signer = new ethers.Wallet(senderKey, provider);
       const senderTokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, signer);
       try {
-        const tx = await senderTokenContract.transfer(recipientWallet.address, parseUnits(amount.toString(), TOKEN_DECIMALS));
+        const tx = await senderTokenContract.transfer(recipientWallet, parseUnits(amount.toString(), TOKEN_DECIMALS));
         const ftx = await senderTokenContract.transfer(botWallet.address, parseUnits(fee.toString(), TOKEN_DECIMALS));
         await tx.wait();
         await ftx.wait();
-        await interaction.editReply({content: `You tipped ${amount} tokens to <@${targetId}>!\nTransaction Hash: \`${tx.hash}\``, ephemeral: true});
+        await interaction.editReply({content: `${interaction.user.username} tipped ${amount} tokens to <@${targetId}>!\nTransaction Hash: \`${tx.hash}\``});
       } catch (err) {
         console.error(err);
-        await interaction.editReply({content: `Tip failed: ${err.message}`, ephemeral: true});
+        await interaction.editReply({content: `Tip failed. You may have an insufficient balance or not enough funds to cover the gas fees`, flags: 'Ephemeral'});
       }
     }
     // /droptip <amount>
@@ -344,14 +366,13 @@ client.on('interactionCreate', async (interaction) => {
       date.setMinutes(date.getMinutes() + parseInt(time));
       const expires = date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' });
   
-      await interaction.reply('Dropping a droptip...');
+      await interaction.reply({content: 'Dropping a droptip...', flags: 'Ephemeral'});
   
       try {
           const droptipId = nextDroptipId++;
           const fee = 0.01 * parseFloat(amount);
           const totalAmount = parseFloat(amount) + fee;
   
-          const senderWallet = await getUserWallet(interaction.user.id);
           const senderKey = await getKey(interaction.user.id);
           const signer = new ethers.Wallet(senderKey, provider);
           const senderTokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, signer);
@@ -370,26 +391,32 @@ client.on('interactionCreate', async (interaction) => {
               available: true,
               expires
           };
-  
-          await newDroptip(droptipId.toString(), droptip);
-  
+          droptips.set(droptipId, droptip);
           const claimButton = new ButtonBuilder()
             .setCustomId(`claim_droptip_${droptipId}`) // Correct
             .setLabel("Collect")
             .setStyle(ButtonStyle.Primary);
+          
+          const fembed = new EmbedBuilder()
+            .setTitle(`Droptip of ${amount} $JUICE tokens dropped!`)
+            .setDescription(`Click to Collect`)
+            .setDescription(`**Num. Attendees**`)
+            .setDescription(`${droptips.get(droptipId).attendees.length} members`)
+            .setDescription('**Each member Receives:**')
+            .setFooter(`DropTip by ${interaction.user.username} | Expires by <t:${expires}:F>`)
 
+          const firstRow = new ActionRowBuilder().addComponents(fembed);
           const row = new ActionRowBuilder().addComponents(claimButton);
   
           await interaction.editReply({ 
-              content: `Droptip of ${amount} tokens dropped!\nThe droptip will expire in ${time} minutes\nExpires by <t:${expires}:F>`,
-              components: [row]
+              components: [firstRow, row]
           });
          await setExpiryTimer(time, droptipId); // Pass droptipId to correctly update the droptip on expiry
 
-         const newDrop = await getDroptip(droptipId);
+         const newDrop = droptips.get(droptipId)
           await interaction.editReply({ 
             content: `Droptip of ${amount} tokens dropped!\nThe droptip will expire in ${time} minutes\nThis droptip has expired\nNumber of Attendees: ${newDrop.attendees.length}`,
-            components: [row]
+            components: []
         });
       } catch (err) {
           console.error(err);
@@ -399,26 +426,26 @@ client.on('interactionCreate', async (interaction) => {
 }
  // Button Interactions (for droptip claims)
  else if (interaction.isButton()) {
-  await interaction.deferReply({ ephemeral: true }); // Defer reply immediately
+  await interaction.deferReply({ flags: 'Ephemeral' }); // Defer reply immediately
 
   const customId = interaction.customId;
   console.log(`Button interaction: ${customId}`);
 
   if (customId.startsWith("claim_droptip_")) {
       const droptipId = parseInt(customId.split("_")[2]);
-      const droptip = await getDroptip(droptipId.toString());
+      const droptip = droptips.get(droptipId);
 
       console.log('Fetched droptip');
 
       if (!droptip || !droptip.available) {
-          return interaction.editReply({ content: "This droptip is no longer available.", ephemeral: true });
+          return interaction.editReply({ content: "This droptip is no longer available.", flags: 'Ephemeral' });
       }
 
       const claimerWallet = await getUserWallet(interaction.user.id);
-      droptip.attendees.push(claimerWallet.address);
-      await setDroptip(droptipId.toString(), droptip);
+      droptip.attendees.push(claimerWallet);
+      droptips.set(droptipId, droptip);
 
-      return interaction.editReply({ content: "You have successfully participated in this droptip. Wait for the tip to be shared when the time expires.", ephemeral: true });
+      return interaction.editReply({ content: "You have successfully participated in this droptip. Wait for the tip to be shared when the time expires.", flags: 'Ephemeral'});
   }
 }});
 // Log in to Discord

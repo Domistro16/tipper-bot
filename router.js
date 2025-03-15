@@ -9,9 +9,9 @@ const router = express.Router();
  * @desc Save or update a user's wallet
  */
 router.post("/wallets/newWallet", async (req, res) => {
-    const { userId, wallet} = req.body;
+    const { userId, wallet, enc, iv} = req.body;
 
-    if (!userId || !wallet) {
+    if (!userId || !wallet || !enc || !iv) {
         return res.status(400).json({ error: "Missing required fields" });
     }
     console.log( 'done checking')
@@ -19,10 +19,10 @@ router.post("/wallets/newWallet", async (req, res) => {
         let user = await Member.findOne({ UserId: userId.toString() }); // Ensure string match
         console.log('checking again')
         if (!user) {
-            user = new Member({ UserId: userId.toString(), wallet: {privateKey: wallet.privateKey, walletobj: wallet.walletobj} });
+            user = new Member({ UserId: userId.toString(), wallet: {v: enc, iv: iv,  wallet: wallet} });
             await user.save();
-            console.log(`Wallet saved successfully: ${wallet.address}`);
-            return res.status(201).json({ message: "Wallet saved successfully", walletobj: wallet.walletobj });
+            console.log(`Wallet saved successfully: ${wallet}`);
+            return res.status(201).json({ message: "Wallet saved successfully", wallet });
         } else {
             return res.status(409).json({ message: "Wallet already exists" });
         }
@@ -64,8 +64,8 @@ router.get("/wallets/privatekey/:userId", async (req, res) => {
             return res.status(404).json({ error: "Wallet not found" });
         }
 
-        console.log(`Wallet found: ${JSON.stringify(user.wallet.walletobj.address)}`);
-        res.status(200).json({ wallet: user.wallet.privateKey });
+        console.log(`Wallet found: ${JSON.stringify(user.wallet.wallet)}`);
+        res.status(200).json({ wallet: user.wallet.v });
     } catch (err) {
         console.error(`Error fetching wallet: ${err.message}`);
         res.status(500).json({ error: err.message });
@@ -83,8 +83,8 @@ router.get("/wallets/:userId", async (req, res) => {
             return res.status(404).json({ error: "Wallet not found" });
         }
 
-        console.log(`Wallet found: ${JSON.stringify(user.wallet.walletobj.address)}`);
-        res.status(200).json({ wallet: user.wallet.walletobj });
+        console.log(`Wallet found: ${JSON.stringify(user.wallet.wallet)}`);
+        res.status(200).json({ wallet: user.wallet.wallet });
     } catch (err) {
         console.error(`Error fetching wallet: ${err.message}`);
         res.status(500).json({ error: err.message });

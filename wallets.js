@@ -8,12 +8,16 @@ const MemberSchema = new mongoose.Schema({
     },
     
     wallet:{
-            privateKey: {
+            v: {
                 type: String,
                 required: true,
             },
-            walletobj: {
-                type: mongoose.Schema.Types.Mixed,
+            iv:{
+                type: String,
+                required: true,
+            },
+            wallet: {
+                type: String,
                 required: true,
         },
 }
