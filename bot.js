@@ -16,7 +16,8 @@ const GUILD_ID = process.env.GUILD_ID;        // For testing; use a specific gui
 const BSC_RPC_URL = process.env.BSC_RPC_URL;
 const BOT_PRIVATE_KEY = process.env.BOT_PRIVATE_KEY;
 const TOKEN_DECIMALS = parseInt(process.env.TOKEN_DECIMALS) ?? 18;
-const addresses = [process.env.MEMECOIN_ADDRESS];
+const addresses = [process.env.MEMECOIN_ADDRESS || ''];
+
 
 // Set up ethers provider for BSC
 const provider = new ethers.JsonRpcProvider(BSC_RPC_URL);
@@ -254,12 +255,12 @@ const commands = [
   new SlashCommandBuilder()
     .setName('withdraw')
     .setDescription('Withdraw tokens externally (1% fee, excl. gas)')
-    .addStringOption(option =>
+    .addNumberOption(option =>
       option.setName('token')
         .setDescription('Token to withdraw')
         .setRequired(true)
         .addChoices(
-          { name: 'Safubae', value: '0' }
+          { name: 'Safubae', value: 0 }
         ))
     .addStringOption(option =>
       option.setName('amount')
