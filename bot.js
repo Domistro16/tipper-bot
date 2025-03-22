@@ -235,22 +235,22 @@ const commands = [
   new SlashCommandBuilder()
     .setName('wallet')
     .setDescription('Display your wallet address and token balance.')
-    .addStringOption(option =>
+    .addNumberOption(option =>
       option.setName('token')
         .setDescription('Token to check')
         .setRequired(true)
         .addChoices(
-          { name: 'Safubae', value: 'Safubae' }
+          { name: 'Safubae', value: 0 }
         )),
   new SlashCommandBuilder()
     .setName('deposit')
     .setDescription('Get your deposit address to receive tokens.')
-    .addStringOption(option =>
+    .addNumberOption(option =>
       option.setName('token')
         .setDescription('Token to deposit to')
         .setRequired(true)
         .addChoices(
-          { name: 'Safubae', value: 'Safubae' }
+          { name: 'Safubae', value: 0 }
         )),
   new SlashCommandBuilder()
     .setName('withdraw')
@@ -277,12 +277,12 @@ const commands = [
       option.setName('user')
         .setDescription('User to tip')
         .setRequired(true))
-    .addStringOption(option =>
+    .addNumberOption(option =>
       option.setName('token')
         .setDescription('Token to tip')
         .setRequired(true)
         .addChoices(
-          { name: 'Safubae', value: 'Safubae' }
+          { name: 'Safubae', value: 0 }
         ))
     .addStringOption(option =>
       option.setName('amount')
@@ -291,12 +291,12 @@ const commands = [
   new SlashCommandBuilder()
     .setName('droptip')
     .setDescription('Drop a tip that anyone can claim (1% fee, excl. gas)')
-    .addStringOption(option =>
+    .addNumberOption(option =>
       option.setName('token')
         .setDescription('Token to droptip')
         .setRequired(true)
         .addChoices(
-          { name: 'Safubae', value: 'Safubae' }
+          { name: 'Safubae', value: 0 }
       ))
     .addStringOption(option =>
       option.setName('amount')
