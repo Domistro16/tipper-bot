@@ -347,7 +347,7 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'wallet') {
       await interaction.reply({content: `Checking...`, flags: 'Ephemeral'});
       console.log(`Executing /wallet command for user: ${interaction.user.id}`)
-      const token = interaction.options.getString('token');
+      const token = interaction.options.getNumber('token');
       const MEMECOIN_ADDRESS = addresses[token];
       console.log(MEMECOIN_ADDRESS)
       const tokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, provider);
