@@ -22,7 +22,7 @@ router.post("/wallets/newWallet", async (req, res) => {
             user = new Member({ UserId: userId.toString(), iv: iv, s: salt });
             await user.save();
             console.log(`Wallet saved successfully:`);
-            return res.status(201).json({ message: "Wallet saved successfully", iv});
+            return res.status(201).json({ message: "Wallet saved successfully"});
         } else {
             return res.status(409).json({ message: "Wallet already exists"});
         }

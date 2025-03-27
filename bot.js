@@ -11,8 +11,7 @@ const algorithm = 'aes-256-cbc';
 
 // Environment variables
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;      // Your bot’s application ID
-const GUILD_ID = process.env.GUILD_ID;        // For testing; use a specific guild ID                   
+const CLIENT_ID = process.env.CLIENT_ID;      // Your bot’s application ID              
 const BSC_RPC_URL = process.env.BSC_RPC_URL;
 const BOT_PRIVATE_KEY = process.env.BOT_PRIVATE_KEY;
 const TOKEN_DECIMALS = parseInt(process.env.TOKEN_DECIMALS) ?? 18;
@@ -39,7 +38,7 @@ async function hasSufficientGas(userWalletAddress, requiredGasWei) {
 async function ensureGas(userWalletAddress, requiredGasWei) {
   const balanceWei = await provider.getBalance(userWalletAddress);
   
-  if (balanceWei < (requiredGasWei)) { // Use .lt() to check if user needs gas
+  if (balanceWei < requiredGasWei) { // Use .lt() to check if user needs gas
     const missingGas = requiredGasWei - (balanceWei);
     console.log(`User has insufficient gas. Sending subsidy of ${ethers.formatUnits(missingGas, "ether")} BNB...`);
 
@@ -83,7 +82,7 @@ async function getUserWallet(userId) {
 
   try {
     let key = await getPrivateKey(userId);
-    const res = await axios.get(`https://tipper-bot.onrender.com/api/wallets/${userId}`);
+    const res = await axios.get(`http://localhost:800/api/wallets/${userId}`);
     const iv = res.data.iv
     const salt = res.data.s
     const wallet = new Wallet(decryptPrivateKey(key, iv, salt).toString(), provider);
@@ -103,7 +102,7 @@ async function getUserWallet(userId) {
       try {
         console.log('trying...');
         await storePrivateKey(userId, v);
-        await axios.post(`https://tipper-bot.onrender.com/api/wallets/newWallet`, {
+        await axios.post(`http://localhost:800/api/wallets/newWallet`, {
           userId,
           iv,
           salt,// Ensure valid structure
@@ -124,7 +123,7 @@ async function getDroptip(droptipId) {
   console.log(`Fetching droptip for Droptip ID: ${droptipId}`);
 
   try {
-    const res = await axios.get(`https://tipper-bot.onrender.com/api/droptips/${droptipId}`);
+    const res = await axios.get(`http://localhost:800/api/droptips/${droptipId}`);
     console.log(`Droptip retrieved from API: ${JSON.stringify(res.data)}`);
     return res.data.droptip; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
@@ -136,10 +135,11 @@ async function getKey(UserId) {
   console.log(`Fetching key for ID: ${UserId}`);
   try {
     const key = await getPrivateKey(UserId);
-    const res = await axios.get(`https://tipper-bot.onrender.com/api/wallets/${UserId}`);
-    const iv = res.data;
+    const res = await axios.get(`http://localhost:800/api/wallets/${UserId}`);
+    const iv = res.data.iv;
+    const salt = res.data.s;
     console.log(`Retrieved`);
-    const decryptedKey = decryptPrivateKey(key, iv);
+    const decryptedKey = decryptPrivateKey(key, iv, salt);
     return decryptedKey; 
   }catch(error){
     console.log(error);
@@ -154,7 +154,7 @@ async function setDroptip(droptipId, droptip) {
     droptip 
   }, (key, value) => (typeof value === 'bigint' ? value.toString() : value)));
   try {
-    const res = await axios.post(`https://tipper-bot.onrender.com/api/droptips/updateDroptip`, formattedDroptip);
+    const res = await axios.post(`http://localhost:800/api/droptips/updateDroptip`, formattedDroptip);
     console.log(`Droptip updated from API: ${JSON.stringify(res.data)}`);
     return res; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
@@ -198,7 +198,6 @@ async function setExpiryTimer(minutes, droptipId, MEMECOIN_ADDRESS) {
   if (attendees.length > 0) {
     const bigAmount = BigInt(droptip.amount);
     const amountPerAttendee = bigAmount / BigInt(attendees.length);
-
 
 // When transferring, convert it to a string:
 for (const attendee of attendees) {
@@ -387,7 +386,7 @@ client.on('interactionCreate', async (interaction) => {
     // /withdraw <amount> <destination>
     else if (commandName === 'withdraw') {
       await interaction.reply({ content: 'Withdrawing...', flags: 'Ephemeral' });
-      const token = interaction.options.getString('token');
+      const token = interaction.options.getNumber('token');
       const MEMECOIN_ADDRESS = addresses[token];
       const tokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, provider);
       const amount = interaction.options.getString('amount');
@@ -397,7 +396,7 @@ client.on('interactionCreate', async (interaction) => {
       const userTokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, signer);
 
   
-      const fee = (amount * BigInt(1)) / BigInt(100); // Using bigint
+      const fee = 0.01 * parseFloat(amount);
       const feeBN = parseUnits(fee.toString(), TOKEN_DECIMALS);
       const totalAmount = parseUnits(amount, TOKEN_DECIMALS) + (feeBN);
   
@@ -422,7 +421,7 @@ client.on('interactionCreate', async (interaction) => {
           // Bot sends tokens to destination
           const botSigner = new ethers.Wallet(process.env.BOT_PRIVATE_KEY, provider);
           const bot = new ethers.Contract(MEMECOIN_ADDRESS, abi, botSigner);
-          const mtx = await bot.transfer(destination, parseUnits(totalAmount, TOKEN_DECIMALS));
+          const mtx = await bot.transfer(destination, parseUnits(amount.toString(), TOKEN_DECIMALS));
   
           await mtx.wait();
           const fembed = new EmbedBuilder()
@@ -443,17 +442,20 @@ client.on('interactionCreate', async (interaction) => {
   
     // /tip <user> <amount>
     else if (commandName === 'tip') {
-      await interaction.reply({content: 'Tipping...', flags: 'Ephemeral'});
+      await interaction.reply({content: 'Tipping...'});
       const targetUser = interaction.options.getUser('user');
-      const token = interaction.options.getString('token');
+      const token = interaction.options.getNumber('token');
       const MEMECOIN_ADDRESS = addresses[token];
       const amount = interaction.options.getString('amount');
-      const fee = (amount * BigInt(1)) / BigInt(100); // Using bigint
+      const fee = 0.01 * parseFloat(amount);
       const feeBN = parseUnits(fee.toString(), TOKEN_DECIMALS);
       const totalAmount = parseUnits(amount, TOKEN_DECIMALS) + (feeBN);
       const targetId = targetUser.id;
       if (targetId === interaction.user.id) {
         return interaction.editReply({content: "You cannot tip yourself.", flags: 'Ephemeral'});
+      }
+      if(amount < process.env.TIP_TOKENS ){
+          await interaction.editReply({content: 'You can only tip a minimum of 1000 tokens', flags: 'Ephemeral'})
       }
       const senderKey = await getKey(interaction.user.id);
       const recipientWallet = await getUserWallet(targetId);
@@ -461,15 +463,11 @@ client.on('interactionCreate', async (interaction) => {
       const senderTokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, signer);
 
       try {
-
         const gasEstimate = await senderTokenContract.transfer.estimateGas(botWallet.address, totalAmount);
         const feeData = await provider.getFeeData();
         const gasPrice = feeData.gasPrice;
         const gasCostWei = gasEstimate * (gasPrice);
-        const gasCostBNB = ethers.formatUnits(gasCostWei, "ether");
 
-        await interaction.editReply({ content: `This transaction will cost ${gasCostBNB} BNB in gas fees.`, flags: 'Ephemeral' });
-  
         if (!(await hasSufficientGas(signer.address, gasCostWei))) {
             await ensureGas(signer.address, gasCostWei);
         }
@@ -480,13 +478,13 @@ client.on('interactionCreate', async (interaction) => {
 
         const botSigner = new ethers.Wallet(process.env.BOT_PRIVATE_KEY, provider);
         const bot = new ethers.Contract(MEMECOIN_ADDRESS, abi, botSigner);
-        const mtx = await bot.transfer(recipientWallet, parseUnits(totalAmount, TOKEN_DECIMALS));
+        const mtx = await bot.transfer(recipientWallet, totalAmount);
 
         await mtx.wait(); 
 
 
         const fembed = new EmbedBuilder()
-            .setTitle(`${interaction.user.name} Tipped ${amount} $SAFUBAE tokens to <@${targetId}>!`)
+            .setTitle(`${interaction.user.username} Tipped ${amount} $SAFUBAE tokens!`)
             .setDescription(
               'Transaction Hash: ' + tx.hash + '\n\n' +
               `Lucky you, <@${targetId}>! You just received a tip of ${amount} $SAFUBAE tokens from ${interaction.user.username}!`
@@ -500,17 +498,21 @@ client.on('interactionCreate', async (interaction) => {
     // /droptip <amount>
     else if (commandName === 'droptip') {
       await interaction.reply({content: 'Dropping a droptip...'});
-      const token = interaction.options.getString('token');
+      const token = interaction.options.getNumber('token');
       const MEMECOIN_ADDRESS = addresses[token];
-      const tokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, provider);
       const amount = interaction.options.getString('amount');
       let time = interaction.options.getString('time').split('mn')[0];
-  
-      let date = new Date();
-      date.setMinutes(date.getMinutes() + parseInt(time));
-      const expires = date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const fee = 0.01 * parseFloat(amount);
+      const feeBN = parseUnits(fee.toString(), TOKEN_DECIMALS);
 
+      if(amount < process.env.TIP_TOKENS ){
+        await interaction.editReply({content: 'You can only tip a minimum of 1000 tokens', flags: 'Ephemeral'})
+    }
+
+
+      const totalAmount = parseUnits(amount, TOKEN_DECIMALS) + (feeBN);
   
+     
       try {
           const droptipId = nextDroptipId++;
           let senderKey = await getKey(interaction.user.id);
@@ -518,22 +520,23 @@ client.on('interactionCreate', async (interaction) => {
           senderKey = ''
           const senderTokenContract = new ethers.Contract(MEMECOIN_ADDRESS, abi, signer);
 
-          const gasEstimate = await senderTokenContract.transfer.estimateGas(botWallet.address, parseUnits(amount.toString(), TOKEN_DECIMALS));
+          const gasEstimate = await senderTokenContract.transfer.estimateGas(botWallet.address, totalAmount);
           const feeData = await provider.getFeeData();
           const gasPrice = feeData.gasPrice;
           const gasCostWei = gasEstimate * (gasPrice);
-          const gasCostBNB = ethers.formatUnits(gasCostWei, "ether");
-  
-          await interaction.editReply({ content: `This transaction will cost ${gasCostBNB} BNB in gas fees.`, flags: 'Ephemeral' });
-    
           if (!(await hasSufficientGas(signer.address, gasCostWei))) {
               await ensureGas(signer.address, gasCostWei);
           }
-  
-  
+          
           // Transfer total amount (including fee) to botWallet for escrow
-          const escrowTx = await senderTokenContract.transfer(botWallet.address, parseUnits(amount.toString(), TOKEN_DECIMALS));
+          const escrowTx = await senderTokenContract.transfer(botWallet.address, totalAmount);
           await escrowTx.wait();
+
+          let date = new Date();
+          date.setMinutes(date.getMinutes() + parseInt(time));
+          const expires = date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' });
+    
+      
   
           const droptip = {
               id: droptipId,
@@ -576,29 +579,6 @@ client.on('interactionCreate', async (interaction) => {
                 `⚠️ **WARNING**: Droptips may be lost if the bot restarts.` + 
                 `DropTip by ${interaction.user.username} | Expired`
             );
-            try{
-              const fee = (amount * BigInt(1)) / BigInt(100); // Using bigint
-              const feeBN = parseUnits(fee.toString(), TOKEN_DECIMALS);
-
-              const gasEstimate = await senderTokenContract.transfer.estimateGas(botWallet.address, feeBN);
-              const feeData = await provider.getFeeData();
-              const gasPrice = feeData.gasPrice;
-              const gasCostWei = gasEstimate * (gasPrice);
-              const gasCostBNB = ethers.formatUnits(gasCostWei, "ether");
-      
-              await interaction.editReply({ content: `This transaction will cost ${gasCostBNB} BNB in gas fees.`, flags: 'Ephemeral' });
-        
-              if (!(await hasSufficientGas(signer.address, gasCostWei))) {
-                  await ensureGas(signer.address, gasCostWei);
-              }
-
-              const escrowTx = await senderTokenContract.transfer(botWallet.address, feeBN);
-              await escrowTx.wait();
-            }catch(error){
-              await interaction.editReply({content: 'Unable to complete payment of fees'})
-            }
-
-
           await interaction.editReply({ 
             content: '', // Remove the previous message content
             embeds: [fembed],  // Use `embeds` instead of `components`
