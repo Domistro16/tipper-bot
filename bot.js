@@ -82,7 +82,7 @@ async function getUserWallet(userId) {
 
   try {
     let key = await getPrivateKey(userId);
-    const res = await axios.get(`http://localhost:800/api/wallets/${userId}`);
+    const res = await axios.get(`https://tipper-server.onrender.com/api/wallets/${userId}`);
     const iv = res.data.iv
     const salt = res.data.s
     const wallet = new Wallet(decryptPrivateKey(key, iv, salt).toString(), provider);
@@ -102,7 +102,7 @@ async function getUserWallet(userId) {
       try {
         console.log('trying...');
         await storePrivateKey(userId, v);
-        await axios.post(`http://localhost:800/api/wallets/newWallet`, {
+        await axios.post(`https://tipper-server.onrender.com/api/wallets/newWallet`, {
           userId,
           iv,
           salt,// Ensure valid structure
@@ -123,7 +123,7 @@ async function getDroptip(droptipId) {
   console.log(`Fetching droptip for Droptip ID: ${droptipId}`);
 
   try {
-    const res = await axios.get(`http://localhost:800/api/droptips/${droptipId}`);
+    const res = await axios.get(`https://tipper-server.onrender.com/api/droptips/${droptipId}`);
     console.log(`Droptip retrieved from API: ${JSON.stringify(res.data)}`);
     return res.data.droptip; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
@@ -135,7 +135,7 @@ async function getKey(UserId) {
   console.log(`Fetching key for ID: ${UserId}`);
   try {
     const key = await getPrivateKey(UserId);
-    const res = await axios.get(`http://localhost:800/api/wallets/${UserId}`);
+    const res = await axios.get(`https://tipper-server.onrender.com/api/wallets/${UserId}`);
     const iv = res.data.iv;
     const salt = res.data.s;
     console.log(`Retrieved`);
@@ -154,7 +154,7 @@ async function setDroptip(droptipId, droptip) {
     droptip 
   }, (key, value) => (typeof value === 'bigint' ? value.toString() : value)));
   try {
-    const res = await axios.post(`http://localhost:800/api/droptips/updateDroptip`, formattedDroptip);
+    const res = await axios.post(`https://tipper-server.onrender.com/api/droptips/updateDroptip`, formattedDroptip);
     console.log(`Droptip updated from API: ${JSON.stringify(res.data)}`);
     return res; // Assuming API returns { wallet: { address: "0x..." } }
   }catch(error){
